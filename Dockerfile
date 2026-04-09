@@ -1,34 +1,24 @@
-FROM ubuntu:22.04
+FROM php:8.1-apache
 
-# Menggabungkan install & pembersihan cache dalam satu layer (Sangat Disarankan)
-RUN apt update -y && \
-    DEBIAN_FRONTEND=noninteractive apt install -y apache2 \
-    php npm php-xml php-mbstring php-curl php-mysql php-gd \
-    unzip nano curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# 1. Install extension PHP yang dibutuhkan Laravel
+RUN apt-get update && apt-get install -y \
+    libpng-dev zlib1g-dev libxml2-dev libzip-dev zip curl unzip \
+    && docker-php-ext-install pdo_mysql gd zip
 
-RUN curl -sS https://getcomposer.org/installer -o composer-setup.php && \
-    php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+# 2. Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-RUN mkdir -p /var/www/sosmed
-WORKDIR /var/www/sosmed
+# 3. Install Node.js & NPM (untuk frontend)
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
 
-# Pastikan sudah ada file .dockerignore agar tidak menyalin node_modules lokal
-ADD . /var/www/sosmed
-ADD sosmed.conf /etc/apache2/sites-available/
+# 4. Set Working Directory
+WORKDIR /var/www/html
+COPY . .
 
-RUN a2dissite 000-default.conf && a2ensite sosmed.conf
-
-# Folder-folder Laravel yang dibutuhkan
-RUN mkdir -p bootstrap/cache \
-    storage/framework/cache \
-    storage/framework/sessions \
-    storage/framework/views && \
-    chown -R www-data:www-data /var/www/sosmed && \
-    chmod -R 775 /var/www/sosmed
-
+# 5. Jalankan install.sh
 RUN chmod +x install.sh && ./install.sh
 
-EXPOSE 8000
-CMD php artisan serve --host=0.0.0.0 --port=8000
+# 6. Setup Apache agar membaca folder /public
+RUN sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
+RUN a2enmod rewrite
