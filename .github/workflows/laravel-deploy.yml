@@ -24,25 +24,23 @@ jobs:
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
+
+      - name: Cleanup Disk Space
+        run: |
+          docker system prune -f
+          docker builder prune -f
+
       - name: Build Image
         run: docker build -t $IMAGE_NAME .
+
       - name: List Image
         run: docker image ls
+
       - name: Login to Docker Registry
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASS }}
+
       - name: Push Image
         run: docker push $IMAGE_NAME
-
-  deploy-social-media:
-    needs: build-push-image
-    runs-on: self-hosted
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-      - name: stop and remove existing container
-        run: docker compose down --rmi all
-      - name: start container
-        run: docker compose up -d
